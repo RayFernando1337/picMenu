@@ -28,13 +28,22 @@ export default function Home() {
       setStatus("uploading");
       setMenuUrl(objectUrl);
       
+      console.log("Starting S3 upload for file:", file.name);
+      
       const { url } = await uploadToS3(file);
+      
+      if (!url) {
+        throw new Error("Upload failed - no URL returned");
+      }
+      
+      console.log("S3 upload completed successfully:", url);
       setMenuUrl(url);
       setStatus("parsing");
       
     } catch (err) {
-      console.error("Error processing file:", err);
+      console.error("Error uploading file to S3:", err);
       setStatus("initial");
+      alert("Failed to upload image. Please try again.");
     }
   };
 
@@ -143,6 +152,15 @@ export default function Home() {
       {error && (
         <div className="mt-10 text-red-500">
           An error occurred while processing your menu
+        </div>
+      )}
+
+      {status === "uploading" && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+          <div className="text-white">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-white border-t-transparent"></div>
+            <p className="mt-2">Uploading...</p>
+          </div>
         </div>
       )}
     </div>
