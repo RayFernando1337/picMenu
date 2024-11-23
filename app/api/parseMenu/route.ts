@@ -1,18 +1,24 @@
-import { Together } from "together-ai";
-import { generateObject, streamObject } from "ai";
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateObject, streamObject } from 'ai';
 import { menuSchema } from "@/lib/schemas";
 
-// Add observability if a Helicone key is specified
-const options: ConstructorParameters<typeof Together>[0] = {};
+// Configure Together.ai provider with optional Helicone observability
+const togetherOptions: Parameters<typeof createOpenAI>[0] = {
+  name: 'togetherai',
+  apiKey: process.env.TOGETHER_AI_API_KEY ?? '',
+  baseURL: 'https://api.together.xyz/v1/',
+};
+
+// Add Helicone configuration if API key is present
 if (process.env.HELICONE_API_KEY) {
-  options.baseURL = "https://together.helicone.ai/v1";
-  options.defaultHeaders = {
+  togetherOptions.baseURL = "https://together.helicone.ai/v1";
+  togetherOptions.headers = {
     "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
     "Helicone-Property-MENU": "true",
   };
 }
 
-const together = new Together(options);
+const togetherai = createOpenAI(togetherOptions);
 
 const systemPrompt = `You are a menu analysis assistant. Your task is to:
 1. Extract menu items from images
@@ -29,48 +35,66 @@ export async function POST(request: Request) {
     return Response.json({ error: "No menu URL provided" }, { status: 400 });
   }
 
-  // First pass - extract menu items
-  const { object: menuItems } = await generateObject({
-    model: together("meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo"),
-    schema: menuSchema,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "Extract all menu items from this image:" },
-          { type: "image", image: menuUrl }
-        ]
-      }
-    ]
-  });
-
-  // Generate images in parallel
-  const imagePromises = menuItems.map(async (item) => {
-    const response = await together.images.create({
-      prompt: `A picture of food for a menu, hyper realistic, highly detailed, ${item.name}, ${item.description}.`,
-      model: "black-forest-labs/FLUX.1-schnell",
-      width: 1024,
-      height: 768,
-      steps: 5,
-      response_format: "base64",
+  try {
+    // First pass - extract menu items using Together.ai's vision model
+    const { object: menuItems } = await generateObject({
+      model: togetherai('meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo'),
+      schema: menuSchema,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Extract all menu items from this image:" },
+            { type: "image", image: menuUrl }
+          ]
+        }
+      ]
     });
-    
-    return {
-      ...item,
-      menuImage: { b64_json: response.data[0] }
-    };
-  });
 
-  // Stream the results back to the client
-  const stream = streamObject({
-    model: together("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"),
-    schema: menuSchema,
-    output: "array",
-    data: await Promise.all(imagePromises)
-  });
+    // Generate images in parallel using Together.ai's text-to-image model
+    const imagePromises = menuItems.map(async (item) => {
+      const response = await fetch('https://api.together.xyz/v1/images/create', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.TOGETHER_AI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: `A picture of food for a menu, hyper realistic, highly detailed, ${item.name}, ${item.description}.`,
+          model: "black-forest-labs/FLUX.1-schnell",
+          width: 1024,
+          height: 768,
+          steps: 5,
+          format: "b64_json"
+        })
+      });
+      
+      const data = await response.json();
+      return {
+        ...item,
+        menuImage: { b64_json: data.data[0] }
+      };
+    });
 
-  return stream.toDataStreamResponse();
+    // Stream the results back to the client
+    const stream = streamObject({
+      model: togetherai('meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo'),
+      schema: menuSchema,
+      output: "array",
+      messages: [
+        {
+          role: "assistant",
+          content: JSON.stringify(await Promise.all(imagePromises))
+        }
+      ]
+    });
+
+    return stream.toTextStreamResponse();
+  } catch (error) {
+    console.error('Error processing menu:', error);
+    return Response.json({ error: "Failed to process menu" }, { status: 500 });
+  }
 }
 
 export const maxDuration = 60;
