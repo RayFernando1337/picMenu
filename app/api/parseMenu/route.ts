@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Together } from "together-ai";
 import { generateObject, streamObject } from "ai";
 import { menuSchema } from "@/lib/schemas";

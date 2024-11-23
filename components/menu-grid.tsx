@@ -1,4 +1,4 @@
-import { MenuItem } from "@/app/page";
+import { MenuItem } from "@/lib/schemas";
 import Image from "next/image";
 
 interface MenuGridProps {

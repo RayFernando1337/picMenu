@@ -8,9 +8,8 @@ import { PhotoIcon, MagnifyingGlassIcon } from "@heroicons/react/20/solid";
 import { Input } from "@/components/ui/input";
 import { MenuGrid } from "@/components/menu-grid";
 import Image from "next/image";
-import { italianMenuUrl, italianParsedMenu } from "@/lib/constants";
+import { italianMenuUrl } from "@/lib/constants";
 import { menuSchema } from "@/lib/schemas";
-import type { MenuItem } from "@/lib/schemas";
 
 export default function Home() {
   const { uploadToS3 } = useS3Upload();
