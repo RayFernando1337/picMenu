@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { MenuGrid } from "@/components/menu-grid";
 import Image from "next/image";
 import { italianMenuUrl } from "@/lib/constants";
-import { menuSchema } from "@/lib/schemas";
+import { menuSchema, MenuItem } from "@/lib/schemas";
 
 export default function Home() {
   const { uploadToS3 } = useS3Upload();
@@ -44,7 +44,7 @@ export default function Home() {
   };
 
   const filteredMenu = menuItems?.filter((item) =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+    item?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false
   ) ?? [];
 
   return (
@@ -136,7 +136,7 @@ export default function Home() {
               className="pl-10"
             />
           </div>
-          <MenuGrid items={filteredMenu} />
+          <MenuGrid items={filteredMenu as MenuItem[]} />
         </div>
       )}
 
